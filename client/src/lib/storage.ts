@@ -3,6 +3,10 @@ const STORAGE_PREFIX = "threadify:draft:";
 export interface DraftData {
   content: string;
   updatedAt: number;
+  presetHashtags?: string;
+  generatedPosts?: string[];
+  numberingEnabled?: boolean;
+  appendHashtags?: boolean;
 }
 
 export function getDraft(platformSlug: string): DraftData | null {

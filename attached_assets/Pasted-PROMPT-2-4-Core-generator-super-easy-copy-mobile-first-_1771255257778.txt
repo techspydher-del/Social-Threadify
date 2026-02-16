@@ -1,0 +1,69 @@
+PROMPT 2/4 — Core generator + super easy copy (mobile-first)
+You are continuing the threadify rebuild in Replit. The scaffold is done. Now implement the core generator UI + splitting logic, and make copying insanely easy on mobile and desktop.
+Still non-negotiable
+• No database, no Redis, no auth
+• Everything runs client-side
+• Drafts persist via localStorage (already scaffolded)
+A) Copy Experience (top priority)
+1) Add a sticky “Copy Bar”
+On /social/[slug], once posts are generated, show a sticky action bar (bottom on mobile, top-right on desktop) with:
+• Copy All (primary button)
+• Copy as: “Thread format” (adds numbering like 1/8, 2/8 if enabled for X/Threads) “Plain blocks” (separated by blank line + ---)
+• Copy Current (copies the selected post)
+• Download .txt (exports formatted thread as a text file)
+• Optional: Share button using Web Share API on mobile if available (fallback hidden)
+2) One-tap copy per post
+Each generated post card must include:
+• A Copy icon button (copies that post)
+• A clear success toast (“Copied!”) using sonner or similar
+• When copied, briefly highlight the card (subtle animation)
+3) Copy reliability
+Implement a safe copyToClipboard(text) utility:
+• Use navigator.clipboard.writeText when available
+• Fallback to a hidden <textarea> with document.execCommand('copy')
+• Works on mobile browsers
+4) Auto-select on focus (nice touch)
+When user taps inside a generated post, add a small “Tap Copy” hint and allow selecting text easily.
+B) Generator: smart splitting + post editor
+Input section
+• Keep current “Your Text” card style.
+• Editor area: textarea for input.
+• Add “Preset Hashtags” input (comma-separated). User can enable “append hashtags to each post” toggle.
+• Add “Generate Thread” button.
+Smart splitting rules (must work now)
+Build a splitting pipeline in lib/text-processor.ts:
+1. Normalize input: trim, normalize whitespace, preserve blank lines.
+2. Segment detection (lightweight but solid): Code blocks fenced by ``` must remain intact (never split inside) List items (lines starting with - , * , 1. etc.) should not split mid-item Paragraph boundaries = blank lines Headings like #, ## start new segment Quotes starting with > stay together where possible
+3. Split segments into posts respecting platform character limits.
+Character limits per platform
+• X: 280 (URLs count as 23 chars each). Optionally reserve space for 1/n numbering if enabled.
+• Threads: 500
+• LinkedIn: 3000
+• Reddit: 10000
+• Mastodon: 500
+• Facebook: very high, but still split if user turns on “thread mode”
+Add lib/character-counter.ts to calculate counts per platform (with the URL=23 rule for X).
+Output section
+• Show generated posts in a list of cards.
+• Each card includes: Post number indicator (editable order later) Character count badge (e.g., 241/280) Copy button (one tap) Editable textarea for that post (so user can tweak)
+• Changes to any post update localStorage draft.
+C) Local persistence upgrade
+Extend draft persistence to store:
+• inputText
+• presetHashtags
+• selected platform slug
+• generatedPosts array
+• toggles: numbering, append hashtags, etc.
+Key: threadify:draft:{slug} in localStorage.
+When user opens /social/[slug], restore everything.
+D) UX polish that matches your current design
+• Keep the “Tips for {platform}” card under generator.
+• Add small platform pill in the UI like your screenshot (“Mastodon” badge).
+• Use shadcn/ui components: Card, Button, Tabs, Badge, Select, Separator, Tooltip.
+• Must be excellent on mobile: sticky copy bar must not block content; add bottom padding.
+Deliverables
+1. Working splitting + generation for all platforms.
+2. Copy All, Copy One, and Download .txt work reliably on mobile + desktop.
+3. Toast feedback + subtle highlight on copy.
+4. Draft fully restores after refresh.
+Stop when copy UX is perfect and generator works.
