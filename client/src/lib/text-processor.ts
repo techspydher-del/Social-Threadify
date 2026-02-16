@@ -173,9 +173,9 @@ export function splitIntoPosts(text: string, options: SplitOptions): string[] {
 
   const numberingReserve = numberingEnabled ? 8 : 0;
   const hashtagReserve = hashtagSuffix.length;
-  const effectiveLimit = charLimit - numberingReserve - hashtagReserve;
+  const effectiveLimitVal = charLimit - numberingReserve - hashtagReserve;
 
-  if (effectiveLimit < 20) {
+  if (effectiveLimitVal < 20) {
     return [normalized];
   }
 
@@ -193,8 +193,8 @@ export function splitIntoPosts(text: string, options: SplitOptions): string[] {
     const segLen = effectiveLength(segment.text, platformSlug);
 
     if (segment.type === "code") {
-      if (segLen <= effectiveLimit) {
-        if (currentPost && effectiveLength(currentPost + "\n\n" + segment.text, platformSlug) > effectiveLimit) {
+      if (segLen <= effectiveLimitVal) {
+        if (currentPost && effectiveLength(currentPost + "\n\n" + segment.text, platformSlug) > effectiveLimitVal) {
           flushPost();
         }
         currentPost = currentPost ? currentPost + "\n\n" + segment.text : segment.text;
@@ -205,9 +205,9 @@ export function splitIntoPosts(text: string, options: SplitOptions): string[] {
       continue;
     }
 
-    if (segLen <= effectiveLimit) {
+    if (segLen <= effectiveLimitVal) {
       const combined = currentPost ? currentPost + "\n\n" + segment.text : segment.text;
-      if (effectiveLength(combined, platformSlug) <= effectiveLimit) {
+      if (effectiveLength(combined, platformSlug) <= effectiveLimitVal) {
         currentPost = combined;
       } else {
         flushPost();
@@ -215,7 +215,7 @@ export function splitIntoPosts(text: string, options: SplitOptions): string[] {
       }
     } else {
       flushPost();
-      const subParts = splitTextAtWordBoundary(segment.text, effectiveLimit, platformSlug);
+      const subParts = splitTextAtWordBoundary(segment.text, effectiveLimitVal, platformSlug);
       for (let i = 0; i < subParts.length; i++) {
         if (i < subParts.length - 1) {
           posts.push(subParts[i]);
@@ -236,11 +236,166 @@ export function splitIntoPosts(text: string, options: SplitOptions): string[] {
   return posts.map((post, i) => {
     let result = post;
     if (numberingEnabled && totalPosts > 1) {
-      result = `${result}\n\n${i + 1}/${totalPosts}`;
+      const numbering = `${i + 1}/${totalPosts}`;
+      result = `${result}\n\n${numbering}`;
     }
     if (hashtagSuffix) {
       result = result + hashtagSuffix;
     }
     return result;
   });
+}
+
+export function mergePostsAtIndex(posts: string[], index: number): string[] {
+  if (index < 0 || index >= posts.length - 1) return posts;
+  const merged = [...posts];
+  merged[index] = merged[index] + "\n\n" + merged[index + 1];
+  merged.splice(index + 1, 1);
+  return merged;
+}
+
+export function splitPostAtCursor(posts: string[], index: number, cursorPos: number): string[] {
+  if (index < 0 || index >= posts.length) return posts;
+  const post = posts[index];
+  if (cursorPos <= 0 || cursorPos >= post.length) return posts;
+
+  const before = post.substring(0, cursorPos).trim();
+  const after = post.substring(cursorPos).trim();
+  if (!before || !after) return posts;
+
+  const result = [...posts];
+  result.splice(index, 1, before, after);
+  return result;
+}
+
+export function addSplitBetween(posts: string[], index: number): string[] {
+  return posts;
+}
+
+export function removeSplitBetween(posts: string[], index: number): string[] {
+  return mergePostsAtIndex(posts, index);
+}
+
+export interface FindReplaceOptions {
+  find: string;
+  replace: string;
+  caseSensitive: boolean;
+  replaceAll: boolean;
+}
+
+export function findAndReplace(posts: string[], options: FindReplaceOptions): { posts: string[]; count: number } {
+  const { find, replace, caseSensitive, replaceAll: doReplaceAll } = options;
+  if (!find) return { posts, count: 0 };
+
+  let totalCount = 0;
+  const flags = caseSensitive ? "g" : "gi";
+  const escapedFind = find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(escapedFind, flags);
+
+  const updated = posts.map((post) => {
+    if (doReplaceAll) {
+      const matches = post.match(regex);
+      if (matches) totalCount += matches.length;
+      return post.replace(regex, replace);
+    } else {
+      const singleRegex = new RegExp(escapedFind, caseSensitive ? "" : "i");
+      if (singleRegex.test(post) && totalCount === 0) {
+        totalCount = 1;
+        return post.replace(singleRegex, replace);
+      }
+      return post;
+    }
+  });
+
+  return { posts: updated, count: totalCount };
+}
+
+export function smartFormat(text: string, platformSlug: string): string {
+  switch (platformSlug) {
+    case "x-thread-generator":
+    case "threads-thread-generator":
+      return formatForShortPlatform(text);
+    case "linkedin-post-formatter":
+      return formatForLinkedIn(text);
+    case "reddit-post-splitter":
+      return formatForReddit(text);
+    case "mastodon-post-splitter":
+      return formatForMastodon(text);
+    case "facebook-post-formatter":
+      return formatForShortPlatform(text);
+    default:
+      return text;
+  }
+}
+
+function formatForShortPlatform(text: string): string {
+  let result = text;
+  result = result.replace(/\n{3,}/g, "\n\n");
+  result = result.replace(/[ \t]+/g, " ");
+  result = result.replace(/ \n/g, "\n");
+  result = result.replace(/\n /g, "\n");
+  return result.trim();
+}
+
+function formatForLinkedIn(text: string): string {
+  let result = text;
+  result = result.replace(/\n{4,}/g, "\n\n\n");
+  const lines = result.split("\n");
+  const formatted = lines.map((line) => {
+    if (line.length > 200 && !line.startsWith("-") && !line.startsWith("*") && !line.startsWith("#")) {
+      const sentences = line.match(/[^.!?]+[.!?]+/g);
+      if (sentences && sentences.length > 2) {
+        return sentences.map((s) => s.trim()).join("\n\n");
+      }
+    }
+    return line;
+  });
+  result = formatted.join("\n");
+  result = result.trim();
+  if (!/\?[^a-zA-Z]*$/.test(result)) {
+    result += "\n\nWhat are your thoughts?";
+  }
+  return result;
+}
+
+function formatForReddit(text: string): string {
+  let result = text;
+  const codeBlockRegex = /```[\s\S]*?```/g;
+  const codeBlocks: string[] = [];
+  result = result.replace(codeBlockRegex, (match) => {
+    codeBlocks.push(match);
+    return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+  });
+
+  if (result.length > 2000 && !result.toLowerCase().includes("tl;dr")) {
+    const firstSentence = result.match(/^[^.!?]+[.!?]/);
+    if (firstSentence) {
+      result = `**TL;DR:** ${firstSentence[0].trim()}\n\n---\n\n${result}`;
+    }
+  }
+
+  codeBlocks.forEach((block, i) => {
+    result = result.replace(`__CODE_BLOCK_${i}__`, block);
+  });
+
+  return result.trim();
+}
+
+const MASTODON_SENSITIVE_TERMS = [
+  "violence", "death", "suicide", "abuse", "nsfw",
+  "spoiler", "trigger warning", "tw:", "cw:",
+  "graphic", "disturbing", "assault",
+];
+
+function formatForMastodon(text: string): string {
+  let result = text;
+  result = result.replace(/\n{3,}/g, "\n\n");
+
+  const lower = result.toLowerCase();
+  const hasSensitive = MASTODON_SENSITIVE_TERMS.some((term) => lower.includes(term));
+  if (hasSensitive && !lower.startsWith("cw:")) {
+    result = `CW: Sensitive content\n\n${result}`;
+  }
+
+  return result.trim();
 }

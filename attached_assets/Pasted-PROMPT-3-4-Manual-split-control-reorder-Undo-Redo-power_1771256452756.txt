@@ -1,0 +1,182 @@
+PROMPT 3/4 — Manual split control + reorder + Undo/Redo (power-user mode, still no backend)
+
+Continue building threadify. The generator works and copying is excellent. Now add the “serious tools” that make it feel premium, without adding any server/database.
+
+Non-negotiables (repeat)
+
+No database / Redis / auth
+
+Client-side only
+
+Persist state in localStorage per platform slug
+
+
+
+---
+
+A) Manual split-point editing (must-have)
+
+Goal
+
+Let users control exactly where posts break.
+
+Implementation
+
+1. Add a “Split Points” mode toggle in the generator toolbar:
+
+Normal mode: user edits the input text.
+
+Split mode: user can insert/remove split markers visually.
+
+
+
+2. Split marker format (internal) Use a special token in memory only, e.g. __SPLIT__, but do not permanently contaminate the user’s input field.
+
+
+
+Store the original inputText
+
+Store a splitOverrides array of indices/positions in the normalized text OR store explicit manualPosts array.
+
+
+3. UI in Split mode
+
+
+
+Show the generated posts list with a small control between posts:
+
+“Add split here” / “Remove split”
+
+
+When user inserts a split, regenerate posts respecting these manual boundaries.
+
+When user edits a post text, keep it (do not lose their edits on regen). Use a merge strategy:
+
+If regenerated posts are similar length, keep existing edits; otherwise warn and let user choose:
+
+“Regenerate and overwrite”
+
+“Regenerate but keep my edits where possible”
+
+
+
+
+Keep it simple but reliable.
+
+
+---
+
+B) Drag-and-drop reorder (dnd-kit)
+
+Requirements
+
+Add drag handle on each post card.
+
+Users can reorder posts.
+
+Reordering updates numbering + “Copy All” output order instantly.
+
+Persist new order to localStorage.
+
+
+
+---
+
+C) Undo / Redo (history stack)
+
+Requirements
+
+Implement undo/redo for:
+
+inputText changes
+
+generatedPosts edits
+
+split insert/remove
+
+reorder actions
+
+hashtag/preset changes and toggles
+
+
+Implementation approach:
+
+Create hooks/use-history.ts or similar.
+
+Store up to 100 history states.
+
+Add Undo/Redo buttons like your existing UI (small icon buttons).
+
+Keyboard shortcuts on desktop:
+
+Ctrl/Cmd + Z = undo
+
+Ctrl/Cmd + Shift + Z = redo
+
+
+
+Persist only the current state to localStorage, not the entire history.
+
+
+---
+
+D) Find & Replace (across all posts)
+
+Requirements
+
+Add a “Find & Replace” tab like your current UI.
+
+Find input + replace input
+
+Options:
+
+Case sensitive toggle
+
+Replace all
+
+
+Apply across generatedPosts (not just inputText).
+
+This action must be undoable.
+
+
+
+---
+
+E) Platform-specific formatting helpers (lightweight but useful)
+
+Add a “Smart Format” button that applies simple rules per platform:
+
+X/Threads: tighten whitespace, remove double blank lines, optionally convert bullet paragraphs to shorter lines.
+
+LinkedIn: add spacing for readability, keep paragraphs short, suggest a CTA line at the end (template-based).
+
+Reddit: preserve markdown, ensure code blocks are fenced, optionally add TL;DR: for very long content (template-based).
+
+Mastodon: suggest CW if sensitive terms appear (simple keyword list).
+
+
+No external AI calls in this prompt.
+
+
+---
+
+Deliverables
+
+1. Manual split control works and doesn’t destroy user edits.
+
+
+2. Drag reorder works and persists.
+
+
+3. Undo/redo works across major actions.
+
+
+4. Find & replace works across posts.
+
+
+5. Everything still feels fast and clean on mobile.
+
+
+
+Stop when all power tools are stable and polished.
