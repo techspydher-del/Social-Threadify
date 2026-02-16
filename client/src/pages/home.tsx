@@ -9,7 +9,8 @@ import { usePageMeta } from "@/hooks/use-page-meta";
 export default function Home() {
   usePageMeta({
     title: "Threadify",
-    description: "Generate perfectly formatted threads for X, Threads, LinkedIn, Reddit, Mastodon, and Facebook. Free online tool.",
+    description: "Generate perfectly formatted threads for X, Threads, LinkedIn, Reddit, Mastodon, and Facebook. Free online tool with no signup required.",
+    path: "/",
   });
 
   return (

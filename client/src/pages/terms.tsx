@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { usePageMeta } from "@/hooks/use-page-meta";
 
 export default function Terms() {
-  usePageMeta({ title: "Terms of Service", description: "Threadify terms of service." });
+  usePageMeta({ title: "Terms of Service", description: "Threadify terms of service. Free browser-based tool for formatting social media threads.", path: "/terms" });
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:py-14">

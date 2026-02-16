@@ -48,6 +48,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { getPlatformBySlug, platforms } from "@/lib/platforms";
+import { platformSEOContent } from "@/lib/platform-seo";
+import { BASE_URL, SITE_NAME } from "@/lib/seo-config";
 import { getDraft, setDraft } from "@/lib/storage";
 import { countCharacters } from "@/lib/character-counter";
 import { splitIntoPosts, mergePostsAtIndex, findAndReplace, smartFormat } from "@/lib/text-processor";
@@ -55,6 +57,13 @@ import { copyToClipboard, downloadAsTextFile, canShare, shareText } from "@/lib/
 import { usePageMeta } from "@/hooks/use-page-meta";
 import { useToast } from "@/hooks/use-toast";
 import { useHistory, type GeneratorState } from "@/hooks/use-history";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { BookOpen, ListChecks, HelpCircle, ChevronRight } from "lucide-react";
 
 let postIdCounter = 0;
 function nextPostId(): string {
@@ -229,11 +238,44 @@ export default function PlatformPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug || "";
   const platform = getPlatformBySlug(slug);
+  const seo = platformSEOContent[slug];
   const { toast } = useToast();
 
+  const structuredData = [];
+  if (platform && seo) {
+    structuredData.push({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: `${SITE_NAME} - ${platform.name}`,
+      applicationCategory: "UtilitiesApplication",
+      operatingSystem: "Any",
+      url: `${BASE_URL}/social/${slug}`,
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
+      description: seo.metaDescription,
+    });
+    structuredData.push({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: seo.faqs.map((faq) => ({
+        "@type": "Question",
+        name: faq.question,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: faq.answer,
+        },
+      })),
+    });
+  }
+
   usePageMeta({
-    title: platform ? platform.name : "Platform Not Found",
-    description: platform?.description,
+    title: seo?.metaTitle || (platform ? platform.name : "Platform Not Found"),
+    description: seo?.metaDescription || platform?.description,
+    path: platform ? `/social/${slug}` : undefined,
+    structuredData: structuredData.length > 0 ? structuredData : undefined,
   });
 
   const defaultState: GeneratorState = {
@@ -900,6 +942,81 @@ export default function PlatformPage() {
           ))}
         </div>
       </section>
+
+      {seo && (
+        <section className="mt-12 space-y-10" data-testid="section-seo-content">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight sm:text-2xl" data-testid="text-seo-h1">
+              {seo.h1}
+            </h2>
+            <div className="mt-3 space-y-3">
+              {seo.intro.map((para, i) => (
+                <p key={i} className="text-sm text-muted-foreground leading-relaxed" data-testid={`text-seo-intro-${i}`}>
+                  {para}
+                </p>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-4 flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-primary" />
+              <h3 className="text-lg font-semibold" data-testid="text-seo-how-title">How it works</h3>
+            </div>
+            <div className="space-y-3">
+              {seo.howItWorks.map((step, i) => (
+                <div key={i} className="flex gap-3" data-testid={`step-how-${i}`}>
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{step.step}</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-4 flex items-center gap-2">
+              <ListChecks className="h-4 w-4 text-primary" />
+              <h3 className="text-lg font-semibold" data-testid="text-seo-practices-title">Best practices</h3>
+            </div>
+            <ul className="space-y-2">
+              {seo.bestPractices.map((practice, i) => (
+                <li key={i} className="flex gap-2 text-sm text-muted-foreground" data-testid={`text-practice-${i}`}>
+                  <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-primary/60" />
+                  <span className="leading-relaxed">{practice}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <div className="mb-4 flex items-center gap-2">
+              <HelpCircle className="h-4 w-4 text-primary" />
+              <h3 className="text-lg font-semibold" data-testid="text-seo-faq-title">Frequently asked questions</h3>
+            </div>
+            <Card>
+              <CardContent className="p-5 sm:p-6">
+                <Accordion type="single" collapsible className="w-full">
+                  {seo.faqs.map((faq, i) => (
+                    <AccordionItem key={i} value={`seo-faq-${i}`} data-testid={`accordion-seo-faq-${i}`}>
+                      <AccordionTrigger className="text-left text-sm font-medium">
+                        {faq.question}
+                      </AccordionTrigger>
+                      <AccordionContent className="text-sm text-muted-foreground leading-relaxed">
+                        {faq.answer}
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+      )}
 
       {postItems.length > 0 && (
         <div

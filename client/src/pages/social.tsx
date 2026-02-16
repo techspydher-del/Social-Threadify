@@ -9,6 +9,7 @@ export default function Social() {
   usePageMeta({
     title: "Social Media Tools",
     description: "Browse all platform-specific formatting tools. Split and format your content for X, Threads, LinkedIn, Reddit, Mastodon, and Facebook.",
+    path: "/social",
   });
 
   return (

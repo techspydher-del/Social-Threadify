@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { usePageMeta } from "@/hooks/use-page-meta";
 
 export default function Cookies() {
-  usePageMeta({ title: "Cookie Policy", description: "Threadify cookie policy. We use localStorage, not cookies." });
+  usePageMeta({ title: "Cookie Policy", description: "Threadify cookie policy. We use localStorage for draft persistence and theme preference. No tracking cookies.", path: "/cookies" });
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:py-14">

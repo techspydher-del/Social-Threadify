@@ -43,7 +43,25 @@ const faqs = [
 ];
 
 export default function FAQ() {
-  usePageMeta({ title: "FAQ", description: "Frequently asked questions about Threadify." });
+  const faqStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((faq) => ({
+      "@type": "Question",
+      name: faq.q,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: faq.a,
+      },
+    })),
+  };
+
+  usePageMeta({
+    title: "FAQ",
+    description: "Frequently asked questions about Threadify. Learn how the free thread generator works, what platforms are supported, and how your privacy is protected.",
+    path: "/faq",
+    structuredData: [faqStructuredData],
+  });
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:py-14">

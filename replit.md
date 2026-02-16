@@ -40,14 +40,23 @@ Preferred communication style: Simple, everyday language.
 
 **Theme system**: Custom `ThemeProvider` in `client/src/components/theme-provider.tsx` manages light/dark/system themes, persisted to localStorage under key `threadify-theme`. Applied by toggling `light`/`dark` class on `<html>`.
 
-**Page metadata**: `usePageMeta` hook dynamically updates `<title>`, Open Graph, and Twitter meta tags per page.
+**Page metadata**: `usePageMeta` hook (`client/src/hooks/use-page-meta.ts`) dynamically updates `<title>`, Open Graph, Twitter card, canonical link, robots meta, and JSON-LD structured data per page. Accepts `path` for canonical URL, `structuredData` array for JSON-LD injection/cleanup.
+
+**SEO content**: `client/src/lib/platform-seo.ts` contains unique SEO content per platform (metaTitle, metaDescription, H1, intro paragraphs, how-it-works steps, best practices, FAQs). Rendered below the tool UI on each platform page.
+
+**SEO config**: `client/src/lib/seo-config.ts` defines site-wide constants (BASE_URL, SITE_NAME, DEFAULT_OG_IMAGE, TWITTER_HANDLE).
+
+**JSON-LD structured data**: Platform pages inject `SoftwareApplication` and `FAQPage` schemas. FAQ page injects `FAQPage` schema.
+
+**Cookie consent**: `client/src/components/cookie-consent.tsx` - Banner with 3 categories (necessary always on, preferences and analytics off by default). Stored in localStorage under key `threadify-cookie-consent`. Footer has "Manage Cookies" button to reset consent.
 
 ### Backend (Server)
 
 - **Framework**: Express 5 on Node.js with TypeScript
-- **Purpose**: Primarily serves the built frontend SPA in production and provides API route scaffolding
+- **Purpose**: Serves the SPA, provides SEO routes (sitemap, robots.txt), and handles URL redirects
 - **Dev Server**: Vite dev server middleware is integrated into Express during development for HMR
 - **Storage**: `server/storage.ts` has a `MemStorage` class implementing an `IStorage` interface — currently empty as the app is client-side focused
+- **SEO routes**: `server/routes.ts` serves `/sitemap.xml` (all static + platform URLs), `/robots.txt`, and `/social-media-thread-generator` redirect (maps `?platform=x|twitter|threads|linkedin|reddit|mastodon|facebook` to correct `/social/:slug` via 301)
 - **Database config**: Drizzle ORM is configured with PostgreSQL (`drizzle.config.ts`) but the schema (`shared/schema.ts`) currently only contains Zod validation schemas for platform slugs — no database tables are defined. The original requirements explicitly state NO database should be used for user content.
 - **Build**: Custom build script (`script/build.ts`) uses Vite for client bundle and esbuild for server bundle, outputting to `dist/`
 
@@ -77,12 +86,14 @@ client/                  # Frontend SPA
     hooks/               # Custom hooks
     lib/
       platforms.ts       # Platform definitions (slugs, limits, tips, icons)
+      platform-seo.ts    # Per-platform SEO content (unique per slug)
+      seo-config.ts      # Site-wide SEO constants
       storage.ts         # localStorage draft persistence
       queryClient.ts     # React Query setup
       utils.ts           # cn() utility
 server/                  # Express backend
   index.ts               # Server entry point
-  routes.ts              # API route registration (currently empty)
+  routes.ts              # SEO routes (sitemap, robots, redirects)
   storage.ts             # Storage interface (currently empty)
   static.ts              # Static file serving for production
   vite.ts                # Vite dev middleware setup

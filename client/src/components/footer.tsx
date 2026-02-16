@@ -80,6 +80,18 @@ export function Footer() {
                   Cookie Policy
                 </Link>
               </li>
+              <li>
+                <button
+                  className="transition-colors hover:text-foreground text-left"
+                  onClick={() => {
+                    localStorage.removeItem("threadify-cookie-consent");
+                    window.location.reload();
+                  }}
+                  data-testid="footer-link-manage-cookies"
+                >
+                  Manage Cookies
+                </button>
+              </li>
             </ul>
           </div>
         </div>

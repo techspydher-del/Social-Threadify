@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { usePageMeta } from "@/hooks/use-page-meta";
 
 export default function Privacy() {
-  usePageMeta({ title: "Privacy Policy", description: "Threadify privacy policy. We do not collect personal data." });
+  usePageMeta({ title: "Privacy Policy", description: "Threadify privacy policy. We do not collect, store, or process any personal data or user content on our servers.", path: "/privacy" });
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:py-14">

@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
+import { CookieConsent } from "@/components/cookie-consent";
 import Home from "@/pages/home";
 import Social from "@/pages/social";
 import PlatformPage from "@/pages/platform";
@@ -42,6 +43,7 @@ function App() {
             </main>
             <Footer />
           </div>
+          <CookieConsent />
           <Toaster />
         </ThemeProvider>
       </TooltipProvider>
