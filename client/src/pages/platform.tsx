@@ -11,6 +11,15 @@ import {
   Download,
   Share2,
   Hash,
+  Undo2,
+  Redo2,
+  Scissors,
+  Merge,
+  GripVertical,
+  Search,
+  Replace,
+  Sparkles,
+  X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,13 +30,200 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { getPlatformBySlug, platforms } from "@/lib/platforms";
-import { getDraft, setDraft, type DraftData } from "@/lib/storage";
+import { getDraft, setDraft } from "@/lib/storage";
 import { countCharacters } from "@/lib/character-counter";
-import { splitIntoPosts } from "@/lib/text-processor";
+import { splitIntoPosts, mergePostsAtIndex, findAndReplace, smartFormat } from "@/lib/text-processor";
 import { copyToClipboard, downloadAsTextFile, canShare, shareText } from "@/lib/clipboard";
 import { usePageMeta } from "@/hooks/use-page-meta";
 import { useToast } from "@/hooks/use-toast";
+import { useHistory, type GeneratorState } from "@/hooks/use-history";
+
+let postIdCounter = 0;
+function nextPostId(): string {
+  postIdCounter++;
+  return `p-${postIdCounter}`;
+}
+
+export interface PostItem {
+  id: string;
+  text: string;
+}
+
+function postsToItems(posts: string[]): PostItem[] {
+  return posts.map((text) => ({ id: nextPostId(), text }));
+}
+
+function itemsToPosts(items: PostItem[]): string[] {
+  return items.map((item) => item.text);
+}
+
+function SortablePostCard({
+  item,
+  index,
+  total,
+  platformSlug,
+  charLimit,
+  isCopied,
+  isSelected,
+  splitMode,
+  onSelect,
+  onCopy,
+  onEdit,
+  onSplitAt,
+  onMergeWithNext,
+}: {
+  item: PostItem;
+  index: number;
+  total: number;
+  platformSlug: string;
+  charLimit: number;
+  isCopied: boolean;
+  isSelected: boolean;
+  splitMode: boolean;
+  onSelect: () => void;
+  onCopy: () => void;
+  onEdit: (value: string) => void;
+  onSplitAt: (cursorPos: number) => void;
+  onMergeWithNext: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const postCharInfo = countCharacters(item.text, platformSlug, charLimit);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card
+        className={`transition-colors duration-200 ${isSelected ? "ring-1 ring-ring" : ""} ${isCopied ? "ring-2 ring-primary" : ""}`}
+        data-testid={`card-post-${index}`}
+        onClick={onSelect}
+      >
+        <CardContent className="p-4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                {...attributes}
+                {...listeners}
+                className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+                data-testid={`handle-post-${index}`}
+                aria-label={`Drag to reorder post ${index + 1}`}
+              >
+                <GripVertical className="h-4 w-4" />
+              </button>
+              <Badge variant="outline" className="text-xs font-mono" data-testid={`badge-post-number-${index}`}>
+                {index + 1} / {total}
+              </Badge>
+              <Badge
+                variant={postCharInfo.isOver ? "destructive" : "secondary"}
+                className="text-xs font-mono"
+                data-testid={`badge-post-chars-${index}`}
+              >
+                {postCharInfo.count.toLocaleString()} / {postCharInfo.limit.toLocaleString()}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-1">
+              {splitMode && (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const pos = textareaRef.current?.selectionStart;
+                          if (pos !== undefined && pos > 0) {
+                            onSplitAt(pos);
+                          }
+                        }}
+                        data-testid={`button-split-post-${index}`}
+                      >
+                        <Scissors className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Split at cursor</TooltipContent>
+                  </Tooltip>
+                  {index < total - 1 && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onMergeWithNext();
+                          }}
+                          data-testid={`button-merge-post-${index}`}
+                        >
+                          <Merge className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Merge with next post</TooltipContent>
+                    </Tooltip>
+                  )}
+                </>
+              )}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCopy();
+                    }}
+                    data-testid={`button-copy-post-${index}`}
+                  >
+                    {isCopied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Copy this post</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+          <Textarea
+            ref={textareaRef}
+            value={item.text}
+            onChange={(e) => onEdit(e.target.value)}
+            className="min-h-[80px] resize-y text-sm leading-relaxed border-0 bg-transparent focus-visible:ring-1"
+            data-testid={`textarea-post-${index}`}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 export default function PlatformPage() {
   const params = useParams<{ slug: string }>();
@@ -40,87 +236,127 @@ export default function PlatformPage() {
     description: platform?.description,
   });
 
-  const [content, setContent] = useState("");
-  const [presetHashtags, setPresetHashtags] = useState("");
-  const [numberingEnabled, setNumberingEnabled] = useState(true);
-  const [appendHashtags, setAppendHashtags] = useState(false);
-  const [generatedPosts, setGeneratedPosts] = useState<string[]>([]);
+  const defaultState: GeneratorState = {
+    content: "",
+    presetHashtags: "",
+    numberingEnabled: true,
+    appendHashtags: false,
+    generatedPosts: [],
+  };
+
+  const history = useHistory(defaultState);
+
+  const [postItems, setPostItems] = useState<PostItem[]>([]);
   const [selectedPost, setSelectedPost] = useState(0);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
+  const [splitMode, setSplitMode] = useState(false);
+  const [showFindReplace, setShowFindReplace] = useState(false);
+  const [findText, setFindText] = useState("");
+  const [replaceText, setReplaceText] = useState("");
+  const [caseSensitive, setCaseSensitive] = useState(false);
   const generatorRef = useRef<HTMLDivElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const hasLoadedRef = useRef(false);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
   useEffect(() => {
     if (!platform) return;
     const draft = getDraft(slug);
-    if (draft) {
-      setContent(draft.content || "");
-      setPresetHashtags(draft.presetHashtags || "");
-      setNumberingEnabled(draft.numberingEnabled ?? true);
-      setAppendHashtags(draft.appendHashtags ?? false);
-      if (draft.generatedPosts && draft.generatedPosts.length > 0) {
-        setGeneratedPosts(draft.generatedPosts);
-      } else {
-        setGeneratedPosts([]);
-      }
-    } else {
-      setContent("");
-      setPresetHashtags("");
-      setNumberingEnabled(true);
-      setAppendHashtags(false);
-      setGeneratedPosts([]);
-    }
+    const restored: GeneratorState = {
+      content: draft?.content || "",
+      presetHashtags: draft?.presetHashtags || "",
+      numberingEnabled: draft?.numberingEnabled ?? true,
+      appendHashtags: draft?.appendHashtags ?? false,
+      generatedPosts: draft?.generatedPosts || [],
+    };
+    history.reset(restored);
+    setPostItems(postsToItems(restored.generatedPosts));
     setSelectedPost(0);
     setCopiedIndex(null);
     setCopiedAll(false);
+    setSplitMode(false);
+    setShowFindReplace(false);
     hasLoadedRef.current = true;
   }, [slug, platform]);
 
-  const saveDraft = useCallback(
-    (updates: Partial<DraftData>) => {
+  const { content, presetHashtags, numberingEnabled, appendHashtags, generatedPosts } = history.state;
+
+  useEffect(() => {
+    const currentTexts = postItems.map((p) => p.text);
+    const stateTexts = generatedPosts;
+    if (JSON.stringify(currentTexts) !== JSON.stringify(stateTexts)) {
+      setPostItems(postsToItems(stateTexts));
+    }
+  }, [generatedPosts]);
+
+  const persistState = useCallback(
+    (state: GeneratorState) => {
       if (!platform) return;
-      const current = getDraft(slug) || { content: "", updatedAt: 0 };
       setDraft(slug, {
-        ...current,
-        ...updates,
+        content: state.content,
+        presetHashtags: state.presetHashtags,
+        numberingEnabled: state.numberingEnabled,
+        appendHashtags: state.appendHashtags,
+        generatedPosts: state.generatedPosts,
         updatedAt: Date.now(),
       });
     },
     [slug, platform]
   );
 
+  useEffect(() => {
+    if (hasLoadedRef.current) {
+      persistState(history.state);
+    }
+  }, [history.state, persistState]);
+
+  const pushAndPersist = useCallback(
+    (newState: GeneratorState) => {
+      history.pushState(newState);
+    },
+    [history]
+  );
+
+  const updatePosts = useCallback(
+    (newItems: PostItem[]) => {
+      setPostItems(newItems);
+      const texts = itemsToPosts(newItems);
+      history.pushState({ ...history.state, generatedPosts: texts });
+    },
+    [history]
+  );
+
   const handleContentChange = useCallback(
     (value: string) => {
-      setContent(value);
-      saveDraft({ content: value });
+      pushAndPersist({ ...history.state, content: value });
     },
-    [saveDraft]
+    [history.state, pushAndPersist]
   );
 
   const handleHashtagsChange = useCallback(
     (value: string) => {
-      setPresetHashtags(value);
-      saveDraft({ presetHashtags: value });
+      pushAndPersist({ ...history.state, presetHashtags: value });
     },
-    [saveDraft]
+    [history.state, pushAndPersist]
   );
 
   const handleNumberingToggle = useCallback(
     (checked: boolean) => {
-      setNumberingEnabled(checked);
-      saveDraft({ numberingEnabled: checked });
+      pushAndPersist({ ...history.state, numberingEnabled: checked });
     },
-    [saveDraft]
+    [history.state, pushAndPersist]
   );
 
   const handleAppendHashtagsToggle = useCallback(
     (checked: boolean) => {
-      setAppendHashtags(checked);
-      saveDraft({ appendHashtags: checked });
+      pushAndPersist({ ...history.state, appendHashtags: checked });
     },
-    [saveDraft]
+    [history.state, pushAndPersist]
   );
 
   const handleGenerate = useCallback(() => {
@@ -139,63 +375,150 @@ export default function PlatformPage() {
       appendHashtags,
     });
 
-    setGeneratedPosts(posts);
+    const newItems = postsToItems(posts);
+    setPostItems(newItems);
+    pushAndPersist({ ...history.state, generatedPosts: posts });
     setSelectedPost(0);
-    saveDraft({ generatedPosts: posts, content });
 
     setTimeout(() => {
       outputRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 100);
-  }, [platform, content, slug, numberingEnabled, presetHashtags, appendHashtags, saveDraft]);
+  }, [platform, content, slug, numberingEnabled, presetHashtags, appendHashtags, history.state, pushAndPersist]);
+
+  const handleSmartFormat = useCallback(() => {
+    if (!platform || !content.trim()) return;
+    const formatted = smartFormat(content, slug);
+    pushAndPersist({ ...history.state, content: formatted });
+    toast({ title: "Formatted!", description: `Content optimized for ${platform.shortName}.` });
+  }, [platform, content, slug, history.state, pushAndPersist, toast]);
 
   const handlePostEdit = useCallback(
     (index: number, value: string) => {
-      const updated = [...generatedPosts];
-      updated[index] = value;
-      setGeneratedPosts(updated);
-      saveDraft({ generatedPosts: updated });
+      const newItems = [...postItems];
+      newItems[index] = { ...newItems[index], text: value };
+      updatePosts(newItems);
     },
-    [generatedPosts, saveDraft]
+    [postItems, updatePosts]
+  );
+
+  const handleSplitAt = useCallback(
+    (index: number, cursorPos: number) => {
+      const item = postItems[index];
+      if (cursorPos <= 0 || cursorPos >= item.text.length) return;
+      const before = item.text.substring(0, cursorPos).trim();
+      const after = item.text.substring(cursorPos).trim();
+      if (!before || !after) return;
+      const newItems = [...postItems];
+      newItems.splice(index, 1, { id: item.id, text: before }, { id: nextPostId(), text: after });
+      updatePosts(newItems);
+      toast({ title: "Split!", description: `Post ${index + 1} split into two.` });
+    },
+    [postItems, updatePosts, toast]
+  );
+
+  const handleMerge = useCallback(
+    (index: number) => {
+      if (index >= postItems.length - 1) return;
+      const newItems = [...postItems];
+      newItems[index] = { ...newItems[index], text: newItems[index].text + "\n\n" + newItems[index + 1].text };
+      newItems.splice(index + 1, 1);
+      updatePosts(newItems);
+      toast({ title: "Merged!", description: `Posts ${index + 1} and ${index + 2} merged.` });
+    },
+    [postItems, updatePosts, toast]
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      const oldIndex = postItems.findIndex((item) => item.id === active.id);
+      const newIndex = postItems.findIndex((item) => item.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      const reordered = arrayMove(postItems, oldIndex, newIndex);
+      updatePosts(reordered);
+    },
+    [postItems, updatePosts]
+  );
+
+  const handleFindReplace = useCallback(
+    (doAll: boolean) => {
+      if (!findText || postItems.length === 0) return;
+      const texts = itemsToPosts(postItems);
+      const result = findAndReplace(texts, {
+        find: findText,
+        replace: replaceText,
+        caseSensitive,
+        replaceAll: doAll,
+      });
+      if (result.count > 0) {
+        const newItems = postItems.map((item, i) => ({ ...item, text: result.posts[i] }));
+        updatePosts(newItems);
+        toast({ title: "Replaced!", description: `${result.count} occurrence${result.count > 1 ? "s" : ""} replaced.` });
+      } else {
+        toast({ title: "Not found", description: `"${findText}" was not found in any posts.` });
+      }
+    },
+    [findText, replaceText, caseSensitive, postItems, updatePosts, toast]
   );
 
   const handleCopyPost = useCallback(
     async (index: number) => {
-      const success = await copyToClipboard(generatedPosts[index]);
+      const success = await copyToClipboard(postItems[index].text);
       if (success) {
         setCopiedIndex(index);
         toast({ title: "Copied!", description: `Post ${index + 1} copied to clipboard.` });
         setTimeout(() => setCopiedIndex(null), 2000);
       }
     },
-    [generatedPosts, toast]
+    [postItems, toast]
   );
 
-  const handleCopyAll = useCallback(
-    async () => {
-      const text = generatedPosts.join("\n\n---\n\n");
-      const success = await copyToClipboard(text);
-      if (success) {
-        setCopiedAll(true);
-        toast({ title: "All posts copied!", description: `${generatedPosts.length} posts copied to clipboard.` });
-        setTimeout(() => setCopiedAll(false), 2000);
-      }
-    },
-    [generatedPosts, toast]
-  );
+  const handleCopyAll = useCallback(async () => {
+    const text = postItems.map((p) => p.text).join("\n\n---\n\n");
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopiedAll(true);
+      toast({ title: "All posts copied!", description: `${postItems.length} posts copied to clipboard.` });
+      setTimeout(() => setCopiedAll(false), 2000);
+    }
+  }, [postItems, toast]);
 
   const handleDownload = useCallback(() => {
-    const text = generatedPosts
-      .map((post, i) => `--- Post ${i + 1} ---\n${post}`)
+    const text = postItems
+      .map((p, i) => `--- Post ${i + 1} ---\n${p.text}`)
       .join("\n\n");
     const filename = `${platform?.shortName.toLowerCase().replace(/[\s\/]/g, "-")}-thread.txt`;
     downloadAsTextFile(text, filename);
     toast({ title: "Downloaded!", description: "Thread saved as text file." });
-  }, [generatedPosts, platform, toast]);
+  }, [postItems, platform, toast]);
 
   const handleShare = useCallback(async () => {
-    const text = generatedPosts.join("\n\n---\n\n");
+    const text = postItems.map((p) => p.text).join("\n\n---\n\n");
     await shareText(text, `${platform?.shortName} Thread`);
-  }, [generatedPosts, platform]);
+  }, [postItems, platform]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const isMod = e.metaKey || e.ctrlKey;
+      if (isMod && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        history.undo();
+      }
+      if (isMod && e.key === "z" && e.shiftKey) {
+        e.preventDefault();
+        history.redo();
+      }
+      if (isMod && e.key === "y") {
+        e.preventDefault();
+        history.redo();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [history]);
 
   if (!platform) {
     return (
@@ -258,13 +581,39 @@ export default function PlatformPage() {
           <CardContent className="p-5 sm:p-6">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-sm font-semibold" data-testid="text-content-label">Your content</h2>
-              <Badge
-                variant={charInfo.isOver ? "destructive" : "secondary"}
-                className="text-xs font-mono"
-                data-testid="badge-char-count"
-              >
-                {charInfo.count.toLocaleString()} / {charInfo.limit.toLocaleString()}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => history.undo()}
+                      disabled={!history.canUndo}
+                      data-testid="button-undo"
+                    >
+                      <Undo2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Undo (Ctrl+Z)</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => history.redo()}
+                      disabled={!history.canRedo}
+                      data-testid="button-redo"
+                    >
+                      <Redo2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Redo (Ctrl+Shift+Z)</TooltipContent>
+                </Tooltip>
+                <Badge variant={charInfo.isOver ? "destructive" : "secondary"} className="text-xs font-mono" data-testid="badge-char-count">
+                  {charInfo.count.toLocaleString()} / {charInfo.limit.toLocaleString()}
+                </Badge>
+              </div>
             </div>
             <Textarea
               placeholder={`Paste or type your ${platform.shortName} content here...`}
@@ -325,86 +674,185 @@ export default function PlatformPage() {
                 <Info className="mr-1 inline h-3 w-3" />
                 Your draft is saved locally and will be restored on your next visit.
               </p>
-              <Button
-                onClick={handleGenerate}
-                disabled={!content.trim()}
-                className="gap-2"
-                data-testid="button-generate"
-              >
-                Generate
-                <ArrowRight className="h-4 w-4" />
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSmartFormat}
+                      disabled={!content.trim()}
+                      className="gap-1.5"
+                      data-testid="button-smart-format"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Smart Format
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Apply platform-specific formatting</TooltipContent>
+                </Tooltip>
+                <Button
+                  onClick={handleGenerate}
+                  disabled={!content.trim()}
+                  className="gap-2"
+                  data-testid="button-generate"
+                >
+                  Generate
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
       </section>
 
-      {generatedPosts.length > 0 && (
+      {postItems.length > 0 && (
         <section ref={outputRef} className="mb-8" data-testid="section-output">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-sm font-semibold">
               Generated posts
               <Badge variant="secondary" className="ml-2 text-xs" data-testid="badge-post-count">
-                {generatedPosts.length}
+                {postItems.length}
               </Badge>
             </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant={splitMode ? "default" : "outline"}
+                    onClick={() => setSplitMode(!splitMode)}
+                    className="gap-1.5"
+                    data-testid="button-toggle-split-mode"
+                  >
+                    <Scissors className="h-3.5 w-3.5" />
+                    Split Mode
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Toggle split/merge controls on each post</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant={showFindReplace ? "default" : "outline"}
+                    onClick={() => setShowFindReplace(!showFindReplace)}
+                    className="gap-1.5"
+                    data-testid="button-toggle-find-replace"
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                    Find & Replace
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Find and replace across all posts</TooltipContent>
+              </Tooltip>
+            </div>
           </div>
 
-          <div className="space-y-3">
-            {generatedPosts.map((post, index) => {
-              const postCharInfo = countCharacters(post, slug, platform.charLimit);
-              const isCopied = copiedIndex === index;
-              const isSelected = selectedPost === index;
-
-              return (
-                <Card
-                  key={index}
-                  className={`transition-colors duration-200 ${isSelected ? "ring-1 ring-ring" : ""} ${isCopied ? "ring-2 ring-primary" : ""}`}
-                  data-testid={`card-post-${index}`}
-                  onClick={() => setSelectedPost(index)}
-                >
-                  <CardContent className="p-4">
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs font-mono" data-testid={`badge-post-number-${index}`}>
-                          {index + 1} / {generatedPosts.length}
-                        </Badge>
-                        <Badge
-                          variant={postCharInfo.isOver ? "destructive" : "secondary"}
-                          className="text-xs font-mono"
-                          data-testid={`badge-post-chars-${index}`}
-                        >
-                          {postCharInfo.count.toLocaleString()} / {postCharInfo.limit.toLocaleString()}
-                        </Badge>
-                      </div>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCopyPost(index);
-                            }}
-                            data-testid={`button-copy-post-${index}`}
-                          >
-                            {isCopied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Copy this post</TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Textarea
-                      value={post}
-                      onChange={(e) => handlePostEdit(index, e.target.value)}
-                      className="min-h-[80px] resize-y text-sm leading-relaxed border-0 bg-transparent focus-visible:ring-1"
-                      data-testid={`textarea-post-${index}`}
+          {showFindReplace && (
+            <Card className="mb-3" data-testid="card-find-replace">
+              <CardContent className="p-4">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="flex-1 min-w-[140px]">
+                    <Label className="mb-1 text-xs text-muted-foreground flex items-center gap-1">
+                      <Search className="h-3 w-3" />
+                      Find
+                    </Label>
+                    <Input
+                      placeholder="Search text..."
+                      value={findText}
+                      onChange={(e) => setFindText(e.target.value)}
+                      className="text-sm"
+                      data-testid="input-find"
                     />
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                  </div>
+                  <div className="flex-1 min-w-[140px]">
+                    <Label className="mb-1 text-xs text-muted-foreground flex items-center gap-1">
+                      <Replace className="h-3 w-3" />
+                      Replace with
+                    </Label>
+                    <Input
+                      placeholder="Replace text..."
+                      value={replaceText}
+                      onChange={(e) => setReplaceText(e.target.value)}
+                      className="text-sm"
+                      data-testid="input-replace"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <Switch
+                        id="case-sensitive"
+                        checked={caseSensitive}
+                        onCheckedChange={setCaseSensitive}
+                        data-testid="switch-case-sensitive"
+                      />
+                      <Label htmlFor="case-sensitive" className="text-xs cursor-pointer whitespace-nowrap">
+                        Case sensitive
+                      </Label>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleFindReplace(false)}
+                      disabled={!findText}
+                      data-testid="button-replace-one"
+                    >
+                      Replace
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => handleFindReplace(true)}
+                      disabled={!findText}
+                      data-testid="button-replace-all"
+                    >
+                      Replace All
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setShowFindReplace(false)}
+                      data-testid="button-close-find-replace"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={postItems.map((item) => item.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-3">
+                {postItems.map((item, index) => (
+                  <SortablePostCard
+                    key={item.id}
+                    item={item}
+                    index={index}
+                    total={postItems.length}
+                    platformSlug={slug}
+                    charLimit={platform.charLimit}
+                    isCopied={copiedIndex === index}
+                    isSelected={selectedPost === index}
+                    splitMode={splitMode}
+                    onSelect={() => setSelectedPost(index)}
+                    onCopy={() => handleCopyPost(index)}
+                    onEdit={(value) => handlePostEdit(index, value)}
+                    onSplitAt={(pos) => handleSplitAt(index, pos)}
+                    onMergeWithNext={() => handleMerge(index)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         </section>
       )}
 
@@ -453,19 +901,19 @@ export default function PlatformPage() {
         </div>
       </section>
 
-      {generatedPosts.length > 0 && (
+      {postItems.length > 0 && (
         <div
           className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur-sm sm:bottom-auto sm:left-auto sm:top-16 sm:right-4 sm:w-auto sm:rounded-md sm:border sm:shadow-lg"
           data-testid="copy-bar"
         >
           <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-2 px-4 py-2 sm:flex-nowrap sm:px-3">
             <span className="text-xs text-muted-foreground whitespace-nowrap" data-testid="text-copy-bar-info">
-              {generatedPosts.length} posts ready
+              {postItems.length} posts ready
             </span>
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
-                onClick={() => handleCopyAll()}
+                onClick={handleCopyAll}
                 className="gap-1.5"
                 data-testid="button-copy-all"
               >

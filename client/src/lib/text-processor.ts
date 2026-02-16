@@ -254,28 +254,6 @@ export function mergePostsAtIndex(posts: string[], index: number): string[] {
   return merged;
 }
 
-export function splitPostAtCursor(posts: string[], index: number, cursorPos: number): string[] {
-  if (index < 0 || index >= posts.length) return posts;
-  const post = posts[index];
-  if (cursorPos <= 0 || cursorPos >= post.length) return posts;
-
-  const before = post.substring(0, cursorPos).trim();
-  const after = post.substring(cursorPos).trim();
-  if (!before || !after) return posts;
-
-  const result = [...posts];
-  result.splice(index, 1, before, after);
-  return result;
-}
-
-export function addSplitBetween(posts: string[], index: number): string[] {
-  return posts;
-}
-
-export function removeSplitBetween(posts: string[], index: number): string[] {
-  return mergePostsAtIndex(posts, index);
-}
-
 export interface FindReplaceOptions {
   find: string;
   replace: string;

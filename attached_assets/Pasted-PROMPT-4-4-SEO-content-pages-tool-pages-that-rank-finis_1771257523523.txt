@@ -1,0 +1,195 @@
+PROMPT 4/4 — SEO + content pages + “tool pages that rank” (finish strong)
+
+You are finishing the threadify rebuild. The tool works great. Now make it extremely SEO-friendly and production-ready, without adding backend complexity.
+
+Non-negotiables
+
+No database / Redis / auth
+
+No server-side storage of user content
+
+
+
+---
+
+A) SEO: each platform page must be a real landing page
+
+Right now /social/[slug] is a tool page. Turn it into a hybrid:
+
+Above the fold: tool UI (as it is)
+
+Below the tool: SEO content block that is unique per platform
+
+
+For each platform slug, generate and render:
+
+H1 title (unique)
+
+2–3 short intro paragraphs (unique)
+
+“How it works” section
+
+“Best practices” section
+
+“FAQ” section (platform-specific questions)
+
+
+Make content readable, not spammy, not repetitive.
+
+
+---
+
+B) Metadata per page (critical)
+
+Implement per-page metadata using Next.js App Router generateMetadata():
+
+Unique <title> and meta description per platform
+
+Open Graph + Twitter card tags
+
+Canonical URL
+
+Robots meta (index/follow)
+
+
+
+---
+
+C) JSON-LD structured data
+
+Add structured data components:
+
+1. SoftwareApplication schema for the tool pages (threadify)
+
+
+2. FAQPage schema on pages that render FAQs
+
+
+
+Inject JSON-LD correctly in the page (server-rendered).
+
+
+---
+
+D) Sitemap + Robots (real, not placeholder)
+
+Create real routes:
+
+/sitemap.xml (server route)
+
+Include:
+
+/
+
+/social
+
+all /social/[slug] pages
+
+/faq, /privacy, /terms, /cookies
+
+/blog and each blog post if blog is enabled
+
+
+
+/robots.txt
+
+Allow all
+
+Point to sitemap
+
+
+
+Make sure sitemap uses the correct base URL (from env NEXT_PUBLIC_SITE_URL, fallback to request host).
+
+
+---
+
+E) URL routing & redirects for SEO
+
+Implement:
+
+/social-media-thread-generator route:
+
+reads ?platform= query and redirects to matching /social/[slug]
+
+
+/social should exist (no redirect), but also accept legacy patterns if any.
+
+Add canonical links to avoid duplicate indexing.
+
+
+
+---
+
+F) Blog (lightweight but powerful)
+
+Keep blog minimal but SEO-friendly:
+
+Markdown/MDX support (choose one).
+
+/blog list page
+
+/blog/[slug] post page
+
+Tag page optional (nice)
+
+Add 6–10 starter posts titles (no huge content dump) as placeholders.
+
+Add metadata for posts (title, description, published date) + JSON-LD BlogPosting.
+
+
+
+---
+
+G) Performance & Core Web Vitals
+
+Ensure fonts are optimized (next/font).
+
+Avoid layout shifts: fixed heights where needed.
+
+Lazy-load heavy components if any.
+
+Ensure mobile performance is strong.
+
+
+
+---
+
+H) Cookie consent (simple + compliant)
+
+Add cookie consent banner:
+
+Categories: Necessary (always on), Preferences, Analytics (default off)
+
+Store consent in localStorage
+
+Do not load any analytics unless user opts in
+
+Must look clean and not intrusive
+
+
+
+---
+
+Deliverables
+
+1. Platform tool pages now rank-friendly (unique content + FAQs).
+
+
+2. Metadata + canonical + OG done properly.
+
+
+3. JSON-LD for software + FAQ + blog posts.
+
+
+4. Real sitemap + robots working.
+
+
+5. Redirect route implemented.
+
+
+6. Final checklist + where each SEO piece lives in the code.
+
+
+
+Stop after completing SEO + blog + redirects + cookie consent.
