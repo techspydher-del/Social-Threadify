@@ -1,0 +1,135 @@
+
+
+You are rebuilding my app threadify (social media thread generator) in Replit.
+
+Non-negotiables
+
+NO database (no Postgres, no Mongo, no Supabase).
+
+NO Redis / caching layer.
+
+NO user accounts / auth.
+
+NO server-side storage of user content.
+
+All thread generation/editing happens client-side.
+
+Users’ drafts must persist using local device storage (localStorage; and later we can add IndexedDB for images).
+
+
+Tech stack
+
+Next.js (App Router) + TypeScript
+
+Tailwind CSS + CSS variables
+
+shadcn/ui + Radix UI
+
+next-themes for light/dark/system theme
+
+lucide-react icons
+
+
+Primary goal of this prompt
+
+Create the full project scaffold with the correct routes, layout, navigation, SEO base, and the tool page UI shell that looks like my existing design in the screenshots (clean cards, soft borders, good spacing, mobile-first).
+
+Routes to implement now
+
+/ landing page (basic hero + platform cards + CTA buttons)
+
+/social page that lists platform tools (like “Platform-specific tools” section)
+
+/social/[slug] dynamic platform page UI shell (not full logic yet)
+
+/faq, /privacy, /terms, /cookies (simple content pages)
+
+
+UI + layout requirements (match screenshot vibe)
+
+Top sticky header with:
+
+threadify logo/wordmark on left
+
+theme toggle icon
+
+hamburger/menu on mobile
+
+compact “Format for:” platform selector (dropdown) on desktop/tablet like in screenshot
+
+
+Main content uses a centered container, comfortable max width, and stacked sections:
+
+Above-the-fold text intro + “Jump to generator” button (on /social/[slug])
+
+Generator card section placeholder (same spacing as screenshot)
+
+“Tips for {platform}” info card below (placeholder content)
+
+“Related Tools & Resources” card list below
+
+
+Mobile: everything should be readable and spacious, no cramped UI.
+
+Add light/dark theme with tasteful colors similar to current style (royal-blue accents are fine).
+
+
+SEO base (do this now)
+
+Add site metadata defaults in app/layout.tsx:
+
+title template, description, Open Graph, Twitter card
+
+
+Add canonical URLs (simple helper)
+
+Add robots.txt route and sitemap.xml route placeholders (return valid minimal output for now; we’ll enrich later)
+
+
+Local draft persistence (just scaffold now)
+
+Create a small utility lib/storage.ts with:
+
+getDraft(platformSlug)
+
+setDraft(platformSlug, data) Store a JSON object in localStorage keyed by threadify:draft:{slug}. In the /social/[slug] page, create placeholder editor state (text area content) and autosave it to localStorage on change; restore it on load. (Even though generator logic comes later, this proves persistence works.)
+
+
+Platform slugs to support (hardcode list for now)
+
+x-thread-generator
+
+threads-thread-generator
+
+linkedin-post-formatter
+
+reddit-post-splitter
+
+mastodon-post-splitter
+
+facebook-post-formatter
+
+
+Deliverables
+
+1. A running Next.js app in Replit with all routes working.
+
+
+2. Header/footer + theme toggle works and persists.
+
+
+3. /social shows platform cards linking to /social/[slug].
+
+
+4. /social/[slug] renders the UI shell (intro, generator placeholder, tips card, related links).
+
+
+5. Text area content persists after refresh (localStorage).
+
+
+6. Provide the final file tree and the key files you created/edited.
+
+
+
+Stop after completing this scaffold. Do not start implementing the actual splitting algorithm yet.
+
