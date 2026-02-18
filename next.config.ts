@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: false,
   },
+  productionBrowserSourceMaps: false,
 };
 
 export default nextConfig;
