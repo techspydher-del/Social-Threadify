@@ -23,7 +23,28 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="mb-3 text-sm font-semibold">Tools</h4>
+            <h4 className="mb-3 text-sm font-semibold">Free Tools</h4>
+            <ul className="space-y-2 text-sm text-muted-foreground">
+              <li>
+                <Link href="/tools/character-counter" className="transition-colors hover:text-foreground" data-testid="footer-link-character-counter">
+                  Character Counter
+                </Link>
+              </li>
+              <li>
+                <Link href="/tools/word-counter" className="transition-colors hover:text-foreground" data-testid="footer-link-word-counter">
+                  Word Counter
+                </Link>
+              </li>
+              <li>
+                <Link href="/tools/hashtag-generator" className="transition-colors hover:text-foreground" data-testid="footer-link-hashtag-generator">
+                  Hashtag Generator
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="mb-3 text-sm font-semibold">Formatters</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
                 <Link href="/social/x-thread-generator" className="transition-colors hover:text-foreground" data-testid="footer-link-x">
@@ -38,27 +59,6 @@ export function Footer() {
               <li>
                 <Link href="/social/linkedin-post-formatter" className="transition-colors hover:text-foreground" data-testid="footer-link-linkedin">
                   LinkedIn Formatter
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="mb-3 text-sm font-semibold">More Tools</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>
-                <Link href="/social/reddit-post-splitter" className="transition-colors hover:text-foreground" data-testid="footer-link-reddit">
-                  Reddit Splitter
-                </Link>
-              </li>
-              <li>
-                <Link href="/social/mastodon-post-splitter" className="transition-colors hover:text-foreground" data-testid="footer-link-mastodon">
-                  Mastodon Splitter
-                </Link>
-              </li>
-              <li>
-                <Link href="/social/facebook-post-formatter" className="transition-colors hover:text-foreground" data-testid="footer-link-facebook">
-                  Facebook Formatter
                 </Link>
               </li>
             </ul>
